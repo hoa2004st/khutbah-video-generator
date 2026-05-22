@@ -65,7 +65,7 @@
 }
 
 .content-slide {
-  padding: 118px var(--deck-x-margin, 118px);
+  padding: var(--deck-y-margin, 60px) var(--deck-x-margin, 118px);
   align-items: stretch;
 }
 
@@ -97,9 +97,10 @@
 }
 
 .content-wall {
-  width: min(1320px, 100%);
+  width: 100%;
   margin: 0 auto;
-  padding: 120px 0 240px;
+  padding: 0;
+  min-height: 100%;
   font-size: var(--deck-content-size, 54px);
   line-height: 1.64;
   color: var(--deck-text, #f6efe1);

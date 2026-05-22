@@ -20,6 +20,7 @@ export type FontFamilyOption = (typeof fontFamilyOptions)[number];
 export type DeckDesign = {
   fontFamily: FontFamilyOption;
   margin: number;
+  verticalMargin: number;
   fontColor: string;
   backgroundColor: string;
   backgroundImage: string;
@@ -30,6 +31,7 @@ export type DeckDesign = {
 export const DEFAULT_DESIGN: DeckDesign = {
   fontFamily: 'serif',
   margin: 118,
+  verticalMargin: 60,
   fontColor: '#f6efe1',
   backgroundColor: '#101312',
   backgroundImage: '',
@@ -41,7 +43,8 @@ const hexColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a 6-digit hex 
 
 export const deckDesignSchema = z.object({
   fontFamily: z.enum(fontFamilyOptions).default(DEFAULT_DESIGN.fontFamily),
-  margin: z.number().min(60).max(220).default(DEFAULT_DESIGN.margin),
+  margin: z.number().min(0).max(220).default(DEFAULT_DESIGN.margin),
+  verticalMargin: z.number().min(0).max(220).default(DEFAULT_DESIGN.verticalMargin),
   fontColor: hexColorSchema.default(DEFAULT_DESIGN.fontColor),
   backgroundColor: hexColorSchema.default(DEFAULT_DESIGN.backgroundColor),
   backgroundImage: z.string().default(DEFAULT_DESIGN.backgroundImage),

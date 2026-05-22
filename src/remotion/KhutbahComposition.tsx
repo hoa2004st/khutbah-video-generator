@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useRef, useState, useEffect} from 'react';
 import {
   AbsoluteFill,
   Sequence,
@@ -66,6 +66,7 @@ function getDeckStyle(design: DeckDesign): React.CSSProperties {
     '--deck-bg-image': design.backgroundImage ? `url("${design.backgroundImage}")` : 'none',
     '--deck-text': design.fontColor,
     '--deck-x-margin': `${design.margin}px`,
+    '--deck-y-margin': `${design.verticalMargin}px`,
     '--deck-content-size': `${design.fontSize}px`,
     '--deck-title-size': `${Math.round(design.fontSize * 2.18)}px`,
     '--deck-main-title-size': `${Math.round(design.fontSize * 2.82)}px`,
@@ -106,7 +107,16 @@ function TitleSlide({slide, prominent}: {slide: SlidePlan; prominent: boolean}) 
 
 function ContentSlide({slide}: {slide: SlidePlan}) {
   const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
+  const {fps, height} = useVideoConfig();
+  const contentRef = useRef<HTMLArticleElement>(null);
+  const [contentHeight, setContentHeight] = useState(0);
+
+  useEffect(() => {
+    if (contentRef.current) {
+      setContentHeight(contentRef.current.offsetHeight);
+    }
+  }, [slide.content]);
+
   const fadeInFrames = Math.round(fps * 0.8);
   const fadeOutStart = slide.durationInFrames - Math.round(fps * 0.8);
   const progress = interpolate(frame, [fadeInFrames, fadeOutStart], [0, 1], {
@@ -117,14 +127,19 @@ function ContentSlide({slide}: {slide: SlidePlan}) {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const travel = 78;
+  
+  // Calculate positions in pixels: start below screen, end above screen
+  const startY = height;
+  const endY = -contentHeight;
+  const currentY = interpolate(progress, [0, 1], [startY, endY]);
 
   return (
     <AbsoluteFill className="slide content-slide" style={{opacity}}>
       <div className="content-mask">
         <article
+          ref={contentRef}
           className="content-wall"
-          style={{transform: `translateY(${interpolate(progress, [0, 1], [8, -travel])}%)`}}
+          style={{transform: `translateY(${currentY}px)`}}
         >
           {splitParagraphs(slide.content ?? '').map((paragraph, index) => (
             <p key={`${slide.id}-${index}`} dir="auto">
