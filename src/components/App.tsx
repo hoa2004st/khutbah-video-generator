@@ -2,6 +2,8 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {Player} from '@remotion/player';
 import {KhutbahComposition} from '../remotion/KhutbahComposition';
 import {
+  DEFAULT_DESIGN,
+  DeckDesign,
   DeckSpec,
   FPS,
   PASSAGE_TITLES,
@@ -10,6 +12,7 @@ import {
   buildSlidePlan,
   countReadableWords,
   defaultDeck,
+  fontFamilyOptions,
   getDeckDurationSeconds,
   getTotalFrames,
   parseDeckSpec,
@@ -18,6 +21,13 @@ import {buildStandaloneHtml} from '../shared/htmlExport';
 import type {RenderProgress} from '../global';
 
 const STORAGE_KEY = 'khutbah-video-generator.deck.v1';
+
+const fontLabels: Record<DeckDesign['fontFamily'], string> = {
+  serif: 'Serif',
+  sans: 'Sans',
+  arabic: 'Arabic focused',
+  classic: 'Classic',
+};
 
 type SaveState = {
   tone: 'idle' | 'busy' | 'success' | 'error';
@@ -85,6 +95,40 @@ export function App() {
       ...current,
       [key]: {content},
     }));
+  };
+
+  const updateDesign = <Key extends keyof DeckDesign>(key: Key, value: DeckDesign[Key]) => {
+    setDeck((current) => ({
+      ...current,
+      design: {
+        ...current.design,
+        [key]: value,
+      },
+    }));
+  };
+
+  const resetDesign = () => {
+    setDeck((current) => ({
+      ...current,
+      design: DEFAULT_DESIGN,
+    }));
+  };
+
+  const importBackground = (file: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        updateDesign('backgroundImage', reader.result);
+      }
+    };
+    reader.onerror = () => {
+      setSaveState({tone: 'error', message: 'Could not import background image.'});
+    };
+    reader.readAsDataURL(file);
   };
 
   const exportHtml = async () => {
@@ -200,6 +244,99 @@ export function App() {
             />
           </label>
 
+          <section className="design-panel" aria-label="Design options">
+            <div className="section-row">
+              <div>
+                <p className="eyebrow">Design</p>
+                <h2>Slide options</h2>
+              </div>
+              <button type="button" className="small-button" onClick={resetDesign}>
+                Reset
+              </button>
+            </div>
+
+            <label className="field">
+              <span>Font</span>
+              <select
+                value={deck.design.fontFamily}
+                onChange={(event) => updateDesign('fontFamily', event.target.value as DeckDesign['fontFamily'])}
+              >
+                {fontFamilyOptions.map((font) => (
+                  <option key={font} value={font}>
+                    {fontLabels[font]}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="color-grid">
+              <label className="field color-field">
+                <span>Font colour</span>
+                <input
+                  type="color"
+                  value={deck.design.fontColor}
+                  onChange={(event) => updateDesign('fontColor', event.target.value)}
+                />
+              </label>
+              <label className="field color-field">
+                <span>Background</span>
+                <input
+                  type="color"
+                  value={deck.design.backgroundColor}
+                  onChange={(event) => updateDesign('backgroundColor', event.target.value)}
+                />
+              </label>
+            </div>
+
+            <div className="background-import">
+              <label className="file-button">
+                Import background
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => importBackground(event.target.files?.[0] ?? null)}
+                />
+              </label>
+              <button
+                type="button"
+                className="small-button"
+                onClick={() => updateDesign('backgroundImage', '')}
+                disabled={!deck.design.backgroundImage}
+              >
+                Clear image
+              </button>
+              <span>{deck.design.backgroundImage ? 'Image background active' : 'Solid colour background'}</span>
+            </div>
+
+            <RangeField
+              label="Horizontal margin"
+              value={deck.design.margin}
+              min={60}
+              max={220}
+              step={2}
+              unit="px"
+              onChange={(value) => updateDesign('margin', value)}
+            />
+            <RangeField
+              label="Font size"
+              value={deck.design.fontSize}
+              min={34}
+              max={76}
+              step={1}
+              unit="px"
+              onChange={(value) => updateDesign('fontSize', value)}
+            />
+            <RangeField
+              label="Scrolling speed"
+              value={deck.design.scrollingSpeed}
+              min={80}
+              max={240}
+              step={5}
+              unit="wpm"
+              onChange={(value) => updateDesign('scrollingSpeed', value)}
+            />
+          </section>
+
           <div className="stats-grid">
             <Stat label="Duration" value={`${durationSeconds}s`} />
             <Stat label="Slides" value="5" />
@@ -260,6 +397,44 @@ export function App() {
         </section>
       </section>
     </main>
+  );
+}
+
+function RangeField({
+  label,
+  value,
+  min,
+  max,
+  step,
+  unit,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="field range-field">
+      <span>
+        {label}
+        <strong>
+          {value}
+          {unit}
+        </strong>
+      </span>
+      <input
+        type="range"
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+    </label>
   );
 }
 

@@ -13,6 +13,42 @@ export const PASSAGE_TITLES = {
   passage2: 'Khutbah 2',
 } as const;
 
+export const fontFamilyOptions = ['serif', 'sans', 'arabic', 'classic'] as const;
+
+export type FontFamilyOption = (typeof fontFamilyOptions)[number];
+
+export type DeckDesign = {
+  fontFamily: FontFamilyOption;
+  margin: number;
+  fontColor: string;
+  backgroundColor: string;
+  backgroundImage: string;
+  fontSize: number;
+  scrollingSpeed: number;
+};
+
+export const DEFAULT_DESIGN: DeckDesign = {
+  fontFamily: 'serif',
+  margin: 118,
+  fontColor: '#f6efe1',
+  backgroundColor: '#101312',
+  backgroundImage: '',
+  fontSize: 54,
+  scrollingSpeed: READING_WPM,
+};
+
+const hexColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a 6-digit hex color.');
+
+export const deckDesignSchema = z.object({
+  fontFamily: z.enum(fontFamilyOptions).default(DEFAULT_DESIGN.fontFamily),
+  margin: z.number().min(60).max(220).default(DEFAULT_DESIGN.margin),
+  fontColor: hexColorSchema.default(DEFAULT_DESIGN.fontColor),
+  backgroundColor: hexColorSchema.default(DEFAULT_DESIGN.backgroundColor),
+  backgroundImage: z.string().default(DEFAULT_DESIGN.backgroundImage),
+  fontSize: z.number().min(34).max(76).default(DEFAULT_DESIGN.fontSize),
+  scrollingSpeed: z.number().min(80).max(240).default(DEFAULT_DESIGN.scrollingSpeed),
+});
+
 export const deckSpecSchema = z.object({
   title: z.string().trim().min(1, 'Add a title.'),
   passage1: z.object({
@@ -21,6 +57,7 @@ export const deckSpecSchema = z.object({
   passage2: z.object({
     content: z.string().trim().min(1, 'Add passage 2 content.'),
   }),
+  design: deckDesignSchema.default(DEFAULT_DESIGN),
 });
 
 export type DeckSpec = z.infer<typeof deckSpecSchema>;
@@ -46,6 +83,7 @@ export const defaultDeck: DeckSpec = {
     content:
       'The believer carries worship into daily conduct: truthfulness in speech, patience in hardship, and mercy toward people.\n\nقال رسول الله ﷺ: إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ\n\nActions are raised by sincere intention, so renew the intention before every act.',
   },
+  design: DEFAULT_DESIGN,
 };
 
 export function parseDeckSpec(value: unknown): DeckSpec {
@@ -57,8 +95,8 @@ export function countReadableWords(text: string): number {
   return matches?.length ?? 0;
 }
 
-export function contentDurationSeconds(text: string): number {
-  const readingSeconds = Math.ceil((countReadableWords(text) / READING_WPM) * 60);
+export function contentDurationSeconds(text: string, readingWpm = READING_WPM): number {
+  const readingSeconds = Math.ceil((countReadableWords(text) / readingWpm) * 60);
   return Math.max(MIN_CONTENT_SECONDS, readingSeconds + READING_PADDING_SECONDS);
 }
 
@@ -84,7 +122,7 @@ export function buildSlidePlan(deck: DeckSpec): SlidePlan[] {
       id: 'passage-1-content',
       kind: 'content',
       content: deck.passage1.content,
-      durationInFrames: secondsToFrames(contentDurationSeconds(deck.passage1.content)),
+      durationInFrames: secondsToFrames(contentDurationSeconds(deck.passage1.content, deck.design.scrollingSpeed)),
     },
     {
       id: 'passage-2-title',
@@ -96,7 +134,7 @@ export function buildSlidePlan(deck: DeckSpec): SlidePlan[] {
       id: 'passage-2-content',
       kind: 'content',
       content: deck.passage2.content,
-      durationInFrames: secondsToFrames(contentDurationSeconds(deck.passage2.content)),
+      durationInFrames: secondsToFrames(contentDurationSeconds(deck.passage2.content, deck.design.scrollingSpeed)),
     },
   ];
 

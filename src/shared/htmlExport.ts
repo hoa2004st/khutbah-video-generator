@@ -1,4 +1,5 @@
 import {
+  DeckDesign,
   DeckSpec,
   FPS,
   PASSAGE_TITLES,
@@ -23,6 +24,24 @@ function renderParagraphs(content: string): string {
     .join('\n');
 }
 
+function getFontFamily(fontFamily: DeckDesign['fontFamily']): string {
+  switch (fontFamily) {
+    case 'sans':
+      return '"Segoe UI", "Noto Sans", "Noto Naskh Arabic", sans-serif';
+    case 'arabic':
+      return '"Noto Naskh Arabic", "Amiri", Georgia, serif';
+    case 'classic':
+      return '"Palatino Linotype", Palatino, Georgia, "Noto Naskh Arabic", serif';
+    case 'serif':
+    default:
+      return 'Georgia, "Times New Roman", "Noto Naskh Arabic", serif';
+  }
+}
+
+function getBackgroundImageValue(backgroundImage: string): string {
+  return backgroundImage ? `url(${JSON.stringify(backgroundImage)})` : 'none';
+}
+
 export function buildStandaloneHtml(deck: DeckSpec): string {
   const slides = buildSlidePlan(deck);
   const totalSeconds = slides.reduce((sum, slide) => sum + slide.durationInFrames / FPS, 0);
@@ -45,7 +64,6 @@ export function buildStandaloneHtml(deck: DeckSpec): string {
       const isMain = slide.kind === 'title';
       return `<section class="slide title-slide" style="${style}">
   <div class="${isMain ? 'title-block title-block-main' : 'title-block'}">
-    <p class="title-kicker">Khutbah Video</p>
     <h1>${escapeHtml(slide.title ?? '')}</h1>
   </div>
 </section>`;
@@ -61,10 +79,16 @@ export function buildStandaloneHtml(deck: DeckSpec): string {
   <style>
     :root {
       color-scheme: dark;
-      --bg: #101312;
-      --paper: #f6efe1;
+      --bg: ${deck.design.backgroundColor};
+      --paper: ${deck.design.fontColor};
       --gold: #d6b874;
       --teal: #1c605b;
+      --deck-font: ${getFontFamily(deck.design.fontFamily)};
+      --deck-bg-image: ${getBackgroundImageValue(deck.design.backgroundImage)};
+      --deck-x-margin: ${(deck.design.margin / VIDEO_WIDTH) * 100}vw;
+      --deck-content-size: ${(deck.design.fontSize / VIDEO_HEIGHT) * 100}vh;
+      --deck-title-size: ${((deck.design.fontSize * 2.18) / VIDEO_HEIGHT) * 100}vh;
+      --deck-main-title-size: ${((deck.design.fontSize * 2.82) / VIDEO_HEIGHT) * 100}vh;
     }
     * { box-sizing: border-box; }
     html, body {
@@ -74,7 +98,7 @@ export function buildStandaloneHtml(deck: DeckSpec): string {
       overflow: hidden;
       background: var(--bg);
       color: var(--paper);
-      font-family: Georgia, "Times New Roman", "Noto Naskh Arabic", serif;
+      font-family: var(--deck-font);
     }
     .deck {
       position: relative;
@@ -84,7 +108,10 @@ export function buildStandaloneHtml(deck: DeckSpec): string {
       background:
         linear-gradient(135deg, rgba(201, 173, 108, 0.12), transparent 36%),
         linear-gradient(315deg, rgba(28, 96, 91, 0.22), transparent 42%),
+        var(--deck-bg-image),
         var(--bg);
+      background-position: center;
+      background-size: auto, auto, cover, auto;
       overflow: hidden;
     }
     .deck::before {
@@ -105,28 +132,21 @@ export function buildStandaloneHtml(deck: DeckSpec): string {
       opacity: 0;
       animation: slideVisible var(--duration) linear var(--delay) both;
     }
-    .title-slide { text-align: center; padding: 11vh 7vw; }
+    .title-slide { text-align: center; padding: 11vh var(--deck-x-margin); }
     .title-block {
       max-width: 62vw;
       animation: titleTravel var(--duration) cubic-bezier(0.2, 0.84, 0.22, 1) var(--delay) both;
     }
-    .title-kicker {
-      margin: 0 0 2.2vh;
-      color: var(--gold);
-      font-size: 2.9vh;
-      letter-spacing: 0;
-      text-transform: uppercase;
-    }
     .title-block h1 {
       margin: 0;
-      font-size: 10.9vh;
+      font-size: var(--deck-title-size);
       font-weight: 700;
       line-height: 1.05;
       text-wrap: balance;
     }
-    .title-block-main h1 { font-size: 14vh; }
+    .title-block-main h1 { font-size: var(--deck-main-title-size); }
     .content-slide {
-      padding: 10.9vh 8.85vw;
+      padding: 10.9vh var(--deck-x-margin);
       align-items: stretch;
     }
     .content-mask {
@@ -146,17 +166,17 @@ export function buildStandaloneHtml(deck: DeckSpec): string {
     }
     .content-mask::before {
       top: 0;
-      background: linear-gradient(var(--bg), rgba(16, 19, 18, 0));
+      background: linear-gradient(var(--bg), transparent);
     }
     .content-mask::after {
       bottom: 0;
-      background: linear-gradient(rgba(16, 19, 18, 0), var(--bg));
+      background: linear-gradient(transparent, var(--bg));
     }
     .content-wall {
       width: min(68.75vw, 100%);
       margin: 0 auto;
       padding: 11vh 0 22vh;
-      font-size: 5vh;
+      font-size: var(--deck-content-size);
       line-height: 1.64;
       color: var(--paper);
       animation: contentScroll var(--duration) linear var(--delay) both;
@@ -167,7 +187,7 @@ export function buildStandaloneHtml(deck: DeckSpec): string {
     }
     .content-wall p[dir="rtl"],
     .content-wall p:dir(rtl) {
-      font-size: 5.9vh;
+      font-size: calc(var(--deck-content-size) * 1.18);
       line-height: 1.9;
       text-align: right;
     }

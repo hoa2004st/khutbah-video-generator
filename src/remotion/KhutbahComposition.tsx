@@ -8,6 +8,7 @@ import {
   useVideoConfig,
 } from 'remotion';
 import {
+  DeckDesign,
   DeckSpec,
   SlidePlan,
   buildSlidePlan,
@@ -21,9 +22,10 @@ type Props = {
 
 export function KhutbahComposition({deck}: Props) {
   const slides = buildSlidePlan(deck);
+  const deckStyle = getDeckStyle(deck.design);
 
   return (
-    <AbsoluteFill className="composition-root">
+    <AbsoluteFill className="composition-root" style={deckStyle}>
       <div className="ornament ornament-left" />
       <div className="ornament ornament-right" />
       {slides.map((slide) => (
@@ -41,6 +43,33 @@ export function KhutbahComposition({deck}: Props) {
       ))}
     </AbsoluteFill>
   );
+}
+
+function getFontFamily(fontFamily: DeckDesign['fontFamily']): string {
+  switch (fontFamily) {
+    case 'sans':
+      return '"Segoe UI", "Noto Sans", "Noto Naskh Arabic", sans-serif';
+    case 'arabic':
+      return '"Noto Naskh Arabic", "Amiri", Georgia, serif';
+    case 'classic':
+      return '"Palatino Linotype", Palatino, Georgia, "Noto Naskh Arabic", serif';
+    case 'serif':
+    default:
+      return 'Georgia, "Times New Roman", "Noto Naskh Arabic", serif';
+  }
+}
+
+function getDeckStyle(design: DeckDesign): React.CSSProperties {
+  return {
+    '--deck-font': getFontFamily(design.fontFamily),
+    '--deck-bg': design.backgroundColor,
+    '--deck-bg-image': design.backgroundImage ? `url("${design.backgroundImage}")` : 'none',
+    '--deck-text': design.fontColor,
+    '--deck-x-margin': `${design.margin}px`,
+    '--deck-content-size': `${design.fontSize}px`,
+    '--deck-title-size': `${Math.round(design.fontSize * 2.18)}px`,
+    '--deck-main-title-size': `${Math.round(design.fontSize * 2.82)}px`,
+  } as React.CSSProperties;
 }
 
 function TitleSlide({slide, prominent}: {slide: SlidePlan; prominent: boolean}) {
@@ -69,7 +98,6 @@ function TitleSlide({slide, prominent}: {slide: SlidePlan; prominent: boolean}) 
         className={prominent ? 'title-block title-block-main' : 'title-block'}
         style={{transform: `translateY(${translateY}px)`, opacity}}
       >
-        <p className="title-kicker">Khutbah Video</p>
         <h1>{slide.title}</h1>
       </div>
     </AbsoluteFill>

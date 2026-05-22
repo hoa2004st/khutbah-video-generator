@@ -24,6 +24,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -114,6 +115,7 @@ h2 {
 }
 
 .field input,
+.field select,
 .field textarea {
   width: 100%;
   border: 1px solid rgba(246, 239, 225, 0.14);
@@ -124,12 +126,18 @@ h2 {
 }
 
 .field input:focus,
+.field select:focus,
 .field textarea:focus {
   border-color: rgba(214, 184, 116, 0.8);
   box-shadow: 0 0 0 3px rgba(214, 184, 116, 0.12);
 }
 
 .field input {
+  height: 44px;
+  padding: 0 12px;
+}
+
+.field select {
   height: 44px;
   padding: 0 12px;
 }
@@ -143,6 +151,113 @@ h2 {
 
 .field-tall textarea {
   min-height: 190px;
+}
+
+.design-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border: 1px solid rgba(214, 184, 116, 0.2);
+  padding: 16px;
+  background: rgba(246, 239, 225, 0.035);
+}
+
+.section-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-row h2 {
+  color: #fff8e9;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 20px;
+}
+
+.small-button {
+  min-height: 32px;
+  border: 1px solid rgba(214, 184, 116, 0.34);
+  background: rgba(246, 239, 225, 0.07);
+  color: #f6efe1;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.color-field input[type="color"] {
+  height: 44px;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.background-import {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.background-import span {
+  grid-column: 1 / -1;
+  color: #a7b3a9;
+  font-size: 12px;
+}
+
+.file-button {
+  display: grid;
+  place-items: center;
+  min-height: 34px;
+  border: 1px solid rgba(214, 184, 116, 0.34);
+  background: rgba(246, 239, 225, 0.07);
+  color: #f6efe1;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.file-button:hover,
+.small-button:hover:not(:disabled) {
+  border-color: rgba(214, 184, 116, 0.82);
+  background: rgba(214, 184, 116, 0.13);
+}
+
+.file-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.small-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.range-field span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.range-field strong {
+  color: #fff8e9;
+  font-size: 12px;
+}
+
+.range-field input[type="range"] {
+  height: 24px;
+  padding: 0;
+  cursor: pointer;
+  accent-color: #d6b874;
 }
 
 .stats-grid {

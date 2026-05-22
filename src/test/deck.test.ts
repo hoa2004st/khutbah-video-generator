@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {
+  DEFAULT_DESIGN,
   FPS,
   PASSAGE_TITLES,
   TITLE_SECONDS,
@@ -46,6 +47,38 @@ describe('deck model', () => {
       }),
     ).toThrow();
   });
+
+  it('adds default design settings when loading older deck data', () => {
+    const deck = parseDeckSpec({
+      title: 'Older deck',
+      passage1: {content: 'one'},
+      passage2: {content: 'two'},
+    });
+
+    expect(deck.design).toEqual(DEFAULT_DESIGN);
+  });
+
+  it('keeps imported background image data in the design settings', () => {
+    const deck = parseDeckSpec({
+      title: 'Background deck',
+      passage1: {content: 'one'},
+      passage2: {content: 'two'},
+      design: {
+        ...DEFAULT_DESIGN,
+        backgroundImage: 'data:image/png;base64,abc123',
+      },
+    });
+
+    expect(deck.design.backgroundImage).toBe('data:image/png;base64,abc123');
+  });
+
+  it('uses scrolling speed to change content duration', () => {
+    const passage = Array.from({length: 120}, (_, index) => `word${index}`).join(' ');
+    const slow = contentDurationSeconds(passage, 80);
+    const fast = contentDurationSeconds(passage, 240);
+
+    expect(slow).toBeGreaterThan(fast);
+  });
 });
 
 describe('standalone html export', () => {
@@ -56,5 +89,7 @@ describe('standalone html export', () => {
     expect(html).toContain(PASSAGE_TITLES.passage1);
     expect(html).toContain(PASSAGE_TITLES.passage2);
     expect(html).toContain(defaultDeck.title);
+    expect(html).toContain('--deck-content-size');
+    expect(html).toContain('--deck-x-margin');
   });
 });

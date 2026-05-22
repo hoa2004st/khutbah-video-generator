@@ -2,9 +2,12 @@
   background:
     linear-gradient(135deg, rgba(201, 173, 108, 0.12), transparent 36%),
     linear-gradient(315deg, rgba(28, 96, 91, 0.22), transparent 42%),
-    #101312;
-  color: #f6efe1;
-  font-family: Georgia, "Times New Roman", "Noto Naskh Arabic", serif;
+    var(--deck-bg-image, none),
+    var(--deck-bg, #101312);
+  background-position: center;
+  background-size: auto, auto, cover, auto;
+  color: var(--deck-text, #f6efe1);
+  font-family: var(--deck-font, Georgia, "Times New Roman", "Noto Naskh Arabic", serif);
   overflow: hidden;
 }
 
@@ -42,35 +45,27 @@
 
 .title-slide {
   text-align: center;
-  padding: 120px;
+  padding: 120px var(--deck-x-margin, 118px);
 }
 
 .title-block {
   max-width: 1180px;
 }
 
-.title-kicker {
-  margin: 0 0 24px;
-  color: #d6b874;
-  font-size: 31px;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
 .title-block h1 {
   margin: 0;
-  font-size: 118px;
+  font-size: var(--deck-title-size, 118px);
   font-weight: 700;
   line-height: 1.05;
   text-wrap: balance;
 }
 
 .title-block-main h1 {
-  font-size: 152px;
+  font-size: var(--deck-main-title-size, 152px);
 }
 
 .content-slide {
-  padding: 118px 170px;
+  padding: 118px var(--deck-x-margin, 118px);
   align-items: stretch;
 }
 
@@ -93,21 +88,21 @@
 
 .content-mask::before {
   top: 0;
-  background: linear-gradient(#101312, rgba(16, 19, 18, 0));
+  background: linear-gradient(var(--deck-bg, #101312), transparent);
 }
 
 .content-mask::after {
   bottom: 0;
-  background: linear-gradient(rgba(16, 19, 18, 0), #101312);
+  background: linear-gradient(transparent, var(--deck-bg, #101312));
 }
 
 .content-wall {
   width: min(1320px, 100%);
   margin: 0 auto;
   padding: 120px 0 240px;
-  font-size: 54px;
+  font-size: var(--deck-content-size, 54px);
   line-height: 1.64;
-  color: #f6efe1;
+  color: var(--deck-text, #f6efe1);
 }
 
 .content-wall p {
@@ -117,7 +112,7 @@
 
 .content-wall p[dir="rtl"],
 .content-wall p:dir(rtl) {
-  font-size: 64px;
+  font-size: calc(var(--deck-content-size, 54px) * 1.18);
   line-height: 1.9;
   text-align: right;
 }
