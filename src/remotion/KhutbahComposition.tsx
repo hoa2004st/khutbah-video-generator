@@ -117,8 +117,8 @@ function ContentSlide({slide}: {slide: SlidePlan}) {
     }
   }, [slide.content]);
 
-  const fadeInFrames = Math.round(fps * 0.8);
-  const fadeOutStart = slide.durationInFrames - Math.round(fps * 0.8);
+  const fadeInFrames = Math.round(fps * 0.1);
+  const fadeOutStart = slide.durationInFrames - Math.round(fps * 0.1);
   const progress = interpolate(frame, [fadeInFrames, fadeOutStart], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -129,7 +129,7 @@ function ContentSlide({slide}: {slide: SlidePlan}) {
   });
   
   // Calculate positions in pixels: start below screen, end above screen
-  const startY = height;
+  const startY = height-140;
   const endY = -contentHeight;
   const currentY = interpolate(progress, [0, 1], [startY, endY]);
 
