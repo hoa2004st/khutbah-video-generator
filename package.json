@@ -1,0 +1,57 @@
+{
+  "name": "khutbah-video-generator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop app for turning khutbah passages into animated presentation videos.",
+  "main": "dist-electron/electron/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:vite\" \"npm:dev:electron\"",
+    "dev:vite": "vite --host 127.0.0.1",
+    "dev:electron": "wait-on tcp:5173 && tsc -p tsconfig.electron.json && electron .",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.electron.json && vite build",
+    "test": "vitest run",
+    "preview": "vite preview --host 127.0.0.1",
+    "package": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.368",
+    "@remotion/player": "^4.0.368",
+    "@remotion/renderer": "^4.0.368",
+    "electron": "42.2.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "remotion": "^4.0.368",
+    "zod": "^4.0.14"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "@types/react": "^19.1.9",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "concurrently": "^9.2.0",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.6",
+    "vitest": "^3.2.4",
+    "wait-on": "^8.0.4"
+  },
+  "build": {
+    "appId": "app.khutbah.video.generator",
+    "productName": "Khutbah Video Generator",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "src/remotion/**/*",
+      "src/shared/**/*",
+      "src/styles/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
