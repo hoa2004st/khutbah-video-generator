@@ -79,16 +79,15 @@ export function buildStandaloneHtml(deck: DeckSpec): string {
   <style>
     :root {
       color-scheme: dark;
-      --bg: ${deck.design.backgroundColor};
-      --paper: ${deck.design.fontColor};
-      --gold: #d6b874;
-      --teal: #1c605b;
+      --deck-bg: ${deck.design.backgroundColor};
+      --deck-text: ${deck.design.fontColor};
       --deck-font: ${getFontFamily(deck.design.fontFamily)};
       --deck-bg-image: ${getBackgroundImageValue(deck.design.backgroundImage)};
-      --deck-x-margin: ${(deck.design.margin / VIDEO_WIDTH) * 100}vw;
-      --deck-content-size: ${(deck.design.fontSize / VIDEO_HEIGHT) * 100}vh;
-      --deck-title-size: ${((deck.design.fontSize * 2.18) / VIDEO_HEIGHT) * 100}vh;
-      --deck-main-title-size: ${((deck.design.fontSize * 2.82) / VIDEO_HEIGHT) * 100}vh;
+      --deck-x-margin: ${deck.design.margin}px;
+      --deck-y-margin: ${deck.design.verticalMargin}px;
+      --deck-content-size: ${deck.design.fontSize}px;
+      --deck-title-size: ${Math.round(deck.design.fontSize * 2.18)}px;
+      --deck-main-title-size: ${Math.round(deck.design.fontSize * 2.82)}px;
     }
     * { box-sizing: border-box; }
     html, body {
@@ -96,32 +95,50 @@ export function buildStandaloneHtml(deck: DeckSpec): string {
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: var(--bg);
-      color: var(--paper);
+      background: var(--deck-bg);
+      color: var(--deck-text);
       font-family: var(--deck-font);
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .stage {
+      --scale: 1;
+      width: calc(${VIDEO_WIDTH}px * var(--scale));
+      height: calc(${VIDEO_HEIGHT}px * var(--scale));
+      position: relative;
     }
     .deck {
       position: relative;
-      width: 100vw;
-      height: 100vh;
-      aspect-ratio: ${VIDEO_WIDTH} / ${VIDEO_HEIGHT};
+      width: ${VIDEO_WIDTH}px;
+      height: ${VIDEO_HEIGHT}px;
+      transform: scale(var(--scale));
+      transform-origin: top left;
       background:
         linear-gradient(135deg, rgba(201, 173, 108, 0.12), transparent 36%),
         linear-gradient(315deg, rgba(28, 96, 91, 0.22), transparent 42%),
         var(--deck-bg-image),
-        var(--bg);
+        var(--deck-bg);
       background-position: center;
       background-size: auto, auto, cover, auto;
       overflow: hidden;
     }
-    .deck::before {
-      content: "";
+    .ornament {
       position: absolute;
-      inset: 5.37vh;
-      border: 2px solid rgba(214, 184, 116, 0.45);
-      box-shadow: inset 0 0 0 1px rgba(246, 239, 225, 0.08);
-      z-index: 8;
-      pointer-events: none;
+      width: 460px;
+      height: 460px;
+      border: 1px solid rgba(214, 184, 116, 0.25);
+      transform: rotate(45deg);
+    }
+    .ornament-left {
+      left: -250px;
+      top: 120px;
+    }
+    .ornament-right {
+      right: -250px;
+      bottom: 120px;
     }
     .slide {
       position: absolute;
@@ -129,12 +146,13 @@ export function buildStandaloneHtml(deck: DeckSpec): string {
       display: flex;
       align-items: center;
       justify-content: center;
-      opacity: 0;
-      animation: slideVisible var(--duration) linear var(--delay) both;
     }
-    .title-slide { text-align: center; padding: 11vh var(--deck-x-margin); }
+    .title-slide {
+      text-align: center;
+      padding: 120px var(--deck-x-margin);
+    }
     .title-block {
-      max-width: 62vw;
+      max-width: 1180px;
       animation: titleTravel var(--duration) cubic-bezier(0.2, 0.84, 0.22, 1) var(--delay) both;
     }
     .title-block h1 {
@@ -146,43 +164,28 @@ export function buildStandaloneHtml(deck: DeckSpec): string {
     }
     .title-block-main h1 { font-size: var(--deck-main-title-size); }
     .content-slide {
-      padding: 10.9vh var(--deck-x-margin);
+      padding: var(--deck-y-margin) var(--deck-x-margin);
       align-items: stretch;
+      opacity: 0;
+      animation: contentFade var(--duration) linear var(--delay) both;
     }
     .content-mask {
       position: relative;
       width: 100%;
+      height: 100%;
       overflow: hidden;
     }
-    .content-mask::before,
-    .content-mask::after {
-      content: "";
-      position: absolute;
-      left: 0;
-      right: 0;
-      z-index: 2;
-      height: 14vh;
-      pointer-events: none;
-    }
-    .content-mask::before {
-      top: 0;
-      background: linear-gradient(var(--bg), transparent);
-    }
-    .content-mask::after {
-      bottom: 0;
-      background: linear-gradient(transparent, var(--bg));
-    }
     .content-wall {
-      width: min(68.75vw, 100%);
+      width: 100%;
       margin: 0 auto;
-      padding: 11vh 0 22vh;
+      padding: 0;
       font-size: var(--deck-content-size);
       line-height: 1.64;
-      color: var(--paper);
+      color: var(--deck-text);
       animation: contentScroll var(--duration) linear var(--delay) both;
     }
     .content-wall p {
-      margin: 0 0 6.6vh;
+      margin: 0 0 36px;
       white-space: pre-wrap;
     }
     .content-wall p[dir="rtl"],
@@ -191,31 +194,56 @@ export function buildStandaloneHtml(deck: DeckSpec): string {
       line-height: 1.9;
       text-align: right;
     }
-    @keyframes slideVisible {
-      0%, 100% { opacity: 0; }
-      7%, 86% { opacity: 1; }
-    }
     @keyframes titleTravel {
-      0% { transform: translateY(15vh); opacity: 0; }
+      0% { transform: translateY(160px); opacity: 0; }
       18%, 78% { transform: translateY(0); opacity: 1; }
-      100% { transform: translateY(-15vh); opacity: 0; }
+      100% { transform: translateY(-160px); opacity: 0; }
+    }
+    @keyframes contentFade {
+      0%, 100% { opacity: 0; }
+      1%, 99% { opacity: 1; }
     }
     @keyframes contentScroll {
-      from { transform: translateY(8%); }
-      to { transform: translateY(-78%); }
+      from { transform: translateY(var(--content-start, ${VIDEO_HEIGHT}px)); }
+      to { transform: translateY(var(--content-end, -100%)); }
     }
   </style>
 </head>
 <body>
-  <main class="deck" aria-label="${escapeHtml(deck.title)}">
-    ${slideMarkup}
-  </main>
+  <div class="stage">
+    <main class="deck" aria-label="${escapeHtml(deck.title)}">
+      <div class="ornament ornament-left"></div>
+      <div class="ornament ornament-right"></div>
+      ${slideMarkup}
+    </main>
+  </div>
   <script>
     window.__KHUTBAH_DECK__ = ${JSON.stringify({
       title: deck.title,
       passageTitles: [PASSAGE_TITLES.passage1, PASSAGE_TITLES.passage2],
       totalSeconds,
     })};
+
+    const deckHeight = ${VIDEO_HEIGHT};
+    const stage = document.querySelector('.stage');
+    const updateLayout = () => {
+      if (stage) {
+        const scale = Math.min(window.innerWidth / ${VIDEO_WIDTH}, window.innerHeight / ${VIDEO_HEIGHT});
+        stage.style.setProperty('--scale', String(scale));
+      }
+      document.querySelectorAll('.content-wall').forEach((wall) => {
+        const height = wall.scrollHeight;
+        wall.style.setProperty('--content-start', \`\${deckHeight}px\`);
+        wall.style.setProperty('--content-end', \`-\${height}px\`);
+      });
+    };
+
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(updateLayout);
+    }
+    window.addEventListener('load', updateLayout);
+    window.addEventListener('resize', updateLayout);
+    updateLayout();
   </script>
 </body>
 </html>`;
