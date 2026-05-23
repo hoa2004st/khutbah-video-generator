@@ -8,6 +8,12 @@
   -webkit-font-smoothing: antialiased;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -20,6 +26,7 @@ body {
     linear-gradient(135deg, rgba(214, 184, 116, 0.11), transparent 34%),
     linear-gradient(315deg, rgba(28, 96, 91, 0.24), transparent 40%),
     #0c0f0e;
+  overflow: hidden;
 }
 
 button,
@@ -30,15 +37,22 @@ textarea {
 }
 
 .app-shell {
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
   padding: 24px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .workspace {
   display: grid;
   grid-template-columns: 420px minmax(620px, 1fr);
   gap: 24px;
-  min-height: calc(100vh - 48px);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  height: 100%;
 }
 
 .editor-panel,
@@ -53,7 +67,20 @@ textarea {
   flex-direction: column;
   gap: 18px;
   padding: 24px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
+}
+
+.preview-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+  padding: 24px;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
 }
 
 .brand-row,
@@ -62,6 +89,7 @@ textarea {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  flex-shrink: 0;
 }
 
 .eyebrow {
@@ -357,14 +385,6 @@ h2 {
   transition: width 160ms linear;
 }
 
-.preview-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-  min-width: 0;
-  padding: 24px;
-}
-
 .timeline-summary {
   display: flex;
   gap: 5px;
@@ -390,6 +410,8 @@ h2 {
   align-items: center;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
+  flex-shrink: 1;
 }
 
 .player-frame > div {
