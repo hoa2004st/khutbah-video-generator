@@ -93,7 +93,7 @@ export function App() {
   const updatePassage = (key: 'passage1' | 'passage2', content: string) => {
     setDeck((current) => ({
       ...current,
-      [key]: {content},
+      [key]: {...current[key], content},
     }));
   };
 
@@ -227,7 +227,19 @@ export function App() {
           </label>
 
           <label className="field field-tall">
-            <span>{PASSAGE_TITLES.passage1}</span>
+            <span>Passage 1 title</span>
+            <input
+              value={deck.passage1.subtitle}
+              onChange={(event) => setDeck((current) => ({
+                ...current,
+                passage1: {...current.passage1, subtitle: event.target.value},
+              }))}
+              placeholder="Passage 1 title"
+            />
+          </label>
+
+          <label className="field field-tall">
+            <span>Passage 1 content</span>
             <textarea
               value={deck.passage1.content}
               onChange={(event) => updatePassage('passage1', event.target.value)}
@@ -236,7 +248,19 @@ export function App() {
           </label>
 
           <label className="field field-tall">
-            <span>{PASSAGE_TITLES.passage2}</span>
+            <span>Passage 2 title</span>
+            <input
+              value={deck.passage2.subtitle}
+              onChange={(event) => setDeck((current) => ({
+                ...current,
+                passage2: {...current.passage2, subtitle: event.target.value},
+              }))}
+              placeholder="Passage 2 title"
+            />
+          </label>
+
+          <label className="field field-tall">
+            <span>Passage 2 content</span>
             <textarea
               value={deck.passage2.content}
               onChange={(event) => updatePassage('passage2', event.target.value)}
@@ -311,11 +335,20 @@ export function App() {
             <RangeField
               label="Horizontal margin"
               value={deck.design.margin}
-              min={60}
-              max={220}
+              min={0}
+              max={200}
               step={2}
               unit="px"
               onChange={(value) => updateDesign('margin', value)}
+            />
+            <RangeField
+              label="Vertical margin"
+              value={deck.design.verticalMargin}
+              min={0}
+              max={200}
+              step={2}
+              unit="px"
+              onChange={(value) => updateDesign('verticalMargin', value)}
             />
             <RangeField
               label="Font size"

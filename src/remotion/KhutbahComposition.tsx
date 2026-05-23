@@ -35,7 +35,7 @@ export function KhutbahComposition({deck}: Props) {
           durationInFrames={slide.durationInFrames}
         >
           {slide.kind === 'content' ? (
-            <ContentSlide slide={slide} />
+            <ContentSlide slide={slide} deck={deck} />
           ) : (
             <TitleSlide slide={slide} prominent={slide.kind === 'title'} />
           )}
@@ -105,17 +105,18 @@ function TitleSlide({slide, prominent}: {slide: SlidePlan; prominent: boolean}) 
   );
 }
 
-function ContentSlide({slide}: {slide: SlidePlan}) {
+function ContentSlide({slide, deck}: {slide: SlidePlan; deck: DeckSpec}) {
   const frame = useCurrentFrame();
   const {fps, height} = useVideoConfig();
-  const contentRef = useRef<HTMLArticleElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState(0);
 
   useEffect(() => {
     if (contentRef.current) {
-      setContentHeight(contentRef.current.offsetHeight);
+      // Measure scroll height instead of offset height to get actual content
+      setContentHeight(contentRef.current.scrollHeight);
     }
-  }, [slide.content]);
+  }, [slide.content, slide.id, deck.design.fontSize]);
 
   const fadeInFrames = Math.round(fps * 0.1);
   const fadeOutStart = slide.durationInFrames - Math.round(fps * 0.1);
@@ -129,7 +130,7 @@ function ContentSlide({slide}: {slide: SlidePlan}) {
   });
   
   // Calculate positions in pixels: start below screen, end above screen
-  const startY = height-140;
+  const startY = height;
   const endY = -contentHeight;
   const currentY = interpolate(progress, [0, 1], [startY, endY]);
 

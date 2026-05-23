@@ -43,8 +43,8 @@ const hexColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a 6-digit hex 
 
 export const deckDesignSchema = z.object({
   fontFamily: z.enum(fontFamilyOptions).default(DEFAULT_DESIGN.fontFamily),
-  margin: z.number().min(0).max(220).default(DEFAULT_DESIGN.margin),
-  verticalMargin: z.number().min(0).max(220).default(DEFAULT_DESIGN.verticalMargin),
+  margin: z.number().min(0).max(200).default(DEFAULT_DESIGN.margin),
+  verticalMargin: z.number().min(0).max(200).default(DEFAULT_DESIGN.verticalMargin),
   fontColor: hexColorSchema.default(DEFAULT_DESIGN.fontColor),
   backgroundColor: hexColorSchema.default(DEFAULT_DESIGN.backgroundColor),
   backgroundImage: z.string().default(DEFAULT_DESIGN.backgroundImage),
@@ -55,9 +55,11 @@ export const deckDesignSchema = z.object({
 export const deckSpecSchema = z.object({
   title: z.string().trim().min(1, 'Add a title.'),
   passage1: z.object({
+    subtitle: z.string().trim().min(1, 'Add passage 1 subtitle.'),
     content: z.string().trim().min(1, 'Add passage 1 content.'),
   }),
   passage2: z.object({
+    subtitle: z.string().trim().min(1, 'Add passage 2 subtitle.'),
     content: z.string().trim().min(1, 'Add passage 2 content.'),
   }),
   design: deckDesignSchema.default(DEFAULT_DESIGN),
@@ -79,10 +81,12 @@ export type SlidePlan = {
 export const defaultDeck: DeckSpec = {
   title: 'The Mercy of Allah',
   passage1: {
+    subtitle: 'Khutbah 1',
     content:
       'All praise is due to Allah. We praise Him, seek His help, and ask His forgiveness.\n\nقال الله تعالى: فَاذْكُرُونِي أَذْكُرْكُمْ\n\nRemembering Allah softens the heart and returns a person to clarity after distraction.',
   },
   passage2: {
+    subtitle: 'Khutbah 2',
     content:
       'The believer carries worship into daily conduct: truthfulness in speech, patience in hardship, and mercy toward people.\n\nقال رسول الله ﷺ: إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ\n\nActions are raised by sincere intention, so renew the intention before every act.',
   },
@@ -118,7 +122,7 @@ export function buildSlidePlan(deck: DeckSpec): SlidePlan[] {
     {
       id: 'passage-1-title',
       kind: 'passage-title',
-      title: PASSAGE_TITLES.passage1,
+      title: deck.passage1.subtitle,
       durationInFrames: secondsToFrames(TITLE_SECONDS),
     },
     {
@@ -130,7 +134,7 @@ export function buildSlidePlan(deck: DeckSpec): SlidePlan[] {
     {
       id: 'passage-2-title',
       kind: 'passage-title',
-      title: PASSAGE_TITLES.passage2,
+      title: deck.passage2.subtitle,
       durationInFrames: secondsToFrames(TITLE_SECONDS),
     },
     {
@@ -163,3 +167,5 @@ export function splitParagraphs(text: string): string[] {
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
 }
+
+
