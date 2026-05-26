@@ -45,6 +45,7 @@ function getBackgroundImageValue(backgroundImage: string): string {
 export function buildStandaloneHtml(deck: DeckSpec): string {
   const slides = buildSlidePlan(deck);
   const totalSeconds = slides.reduce((sum, slide) => sum + slide.durationInFrames / FPS, 0);
+  const isBilingual = deck.design.contentLayout === 'bilingual';
   const slideMarkup = slides
     .map((slide) => {
       const delay = slide.startFrame / FPS;
@@ -52,6 +53,21 @@ export function buildStandaloneHtml(deck: DeckSpec): string {
       const style = `--delay:${delay}s;--duration:${duration}s;`;
 
       if (slide.kind === 'content') {
+        if (isBilingual) {
+          return `<section class="slide content-slide content-slide-bilingual" style="${style}">
+  <div class="content-mask">
+    <div class="content-columns">
+      <article class="content-wall" style="--duration:${duration}s;">
+        ${renderParagraphs(slide.content ?? '')}
+      </article>
+      <article class="content-wall" style="--duration:${duration}s;">
+        ${renderParagraphs(slide.contentSecondary ?? '')}
+      </article>
+    </div>
+  </div>
+</section>`;
+        }
+
         return `<section class="slide content-slide" style="${style}">
   <div class="content-mask">
     <article class="content-wall" style="--duration:${duration}s;">
@@ -174,6 +190,12 @@ export function buildStandaloneHtml(deck: DeckSpec): string {
       width: 100%;
       height: 100%;
       overflow: hidden;
+    }
+    .content-columns {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 72px;
+      height: 100%;
     }
     .content-wall {
       width: 100%;

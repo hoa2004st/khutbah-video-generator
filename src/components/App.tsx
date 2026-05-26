@@ -56,11 +56,16 @@ export function App() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
   const validDeck = deck;
+  const isBilingual = deck.design.contentLayout === 'bilingual';
   const totalFrames = useMemo(() => getTotalFrames(validDeck), [validDeck]);
   const durationSeconds = useMemo(() => getDeckDurationSeconds(validDeck), [validDeck]);
   const slidePlan = useMemo(() => buildSlidePlan(validDeck), [validDeck]);
-  const passage1Words = countReadableWords(deck.passage1.content);
-  const passage2Words = countReadableWords(deck.passage2.content);
+  const passage1Words =
+    countReadableWords(deck.passage1.content) +
+    (isBilingual ? countReadableWords(deck.passage1.contentSecondary) : 0);
+  const passage2Words =
+    countReadableWords(deck.passage2.content) +
+    (isBilingual ? countReadableWords(deck.passage2.contentSecondary) : 0);
   const apiAvailable = Boolean(window.khutbahApi);
 
   useEffect(() => {
@@ -90,10 +95,14 @@ export function App() {
     setDeck((current) => ({...current, ...next}));
   };
 
-  const updatePassage = (key: 'passage1' | 'passage2', content: string) => {
+  const updatePassage = (
+    key: 'passage1' | 'passage2',
+    field: 'content' | 'contentSecondary',
+    value: string,
+  ) => {
     setDeck((current) => ({
       ...current,
-      [key]: {...current[key], content},
+      [key]: {...current[key], [field]: value},
     }));
   };
 
@@ -238,14 +247,26 @@ export function App() {
             />
           </label>
 
-          <label className="field field-tall">
-            <span>Passage 1 content</span>
-            <textarea
-              value={deck.passage1.content}
-              onChange={(event) => updatePassage('passage1', event.target.value)}
-              placeholder="Paste the first passage..."
-            />
-          </label>
+          <div className={`content-field-grid${isBilingual ? ' is-bilingual' : ''}`}>
+            <label className="field field-tall">
+              <span>Passage 1 content{isBilingual ? ' (Language 1)' : ''}</span>
+              <textarea
+                value={deck.passage1.content}
+                onChange={(event) => updatePassage('passage1', 'content', event.target.value)}
+                placeholder="Paste the first passage..."
+              />
+            </label>
+            {isBilingual ? (
+              <label className="field field-tall">
+                <span>Passage 1 content (Language 2)</span>
+                <textarea
+                  value={deck.passage1.contentSecondary}
+                  onChange={(event) => updatePassage('passage1', 'contentSecondary', event.target.value)}
+                  placeholder="Paste the translation..."
+                />
+              </label>
+            ) : null}
+          </div>
 
           <label className="field field-tall">
             <span>Passage 2 title</span>
@@ -259,14 +280,26 @@ export function App() {
             />
           </label>
 
-          <label className="field field-tall">
-            <span>Passage 2 content</span>
-            <textarea
-              value={deck.passage2.content}
-              onChange={(event) => updatePassage('passage2', event.target.value)}
-              placeholder="Paste the second passage..."
-            />
-          </label>
+          <div className={`content-field-grid${isBilingual ? ' is-bilingual' : ''}`}>
+            <label className="field field-tall">
+              <span>Passage 2 content{isBilingual ? ' (Language 1)' : ''}</span>
+              <textarea
+                value={deck.passage2.content}
+                onChange={(event) => updatePassage('passage2', 'content', event.target.value)}
+                placeholder="Paste the second passage..."
+              />
+            </label>
+            {isBilingual ? (
+              <label className="field field-tall">
+                <span>Passage 2 content (Language 2)</span>
+                <textarea
+                  value={deck.passage2.contentSecondary}
+                  onChange={(event) => updatePassage('passage2', 'contentSecondary', event.target.value)}
+                  placeholder="Paste the translation..."
+                />
+              </label>
+            ) : null}
+          </div>
 
           <section className="design-panel" aria-label="Design options">
             <div className="section-row">
@@ -290,6 +323,16 @@ export function App() {
                     {fontLabels[font]}
                   </option>
                 ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Content layout</span>
+              <select
+                value={deck.design.contentLayout}
+                onChange={(event) => updateDesign('contentLayout', event.target.value as DeckDesign['contentLayout'])}
+              >
+                <option value="single">Single column</option>
+                <option value="bilingual">Bilingual (2 columns)</option>
               </select>
             </label>
 

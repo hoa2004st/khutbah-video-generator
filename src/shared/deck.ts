@@ -26,6 +26,7 @@ export type DeckDesign = {
   backgroundImage: string;
   fontSize: number;
   scrollingSpeed: number;
+  contentLayout: 'single' | 'bilingual';
 };
 
 export const DEFAULT_DESIGN: DeckDesign = {
@@ -37,6 +38,7 @@ export const DEFAULT_DESIGN: DeckDesign = {
   backgroundImage: '',
   fontSize: 54,
   scrollingSpeed: READING_WPM,
+  contentLayout: 'single',
 };
 
 const hexColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a 6-digit hex color.');
@@ -50,17 +52,20 @@ export const deckDesignSchema = z.object({
   backgroundImage: z.string().default(DEFAULT_DESIGN.backgroundImage),
   fontSize: z.number().min(34).max(76).default(DEFAULT_DESIGN.fontSize),
   scrollingSpeed: z.number().min(80).max(240).default(DEFAULT_DESIGN.scrollingSpeed),
+  contentLayout: z.enum(['single', 'bilingual']).default(DEFAULT_DESIGN.contentLayout),
 });
 
 export const deckSpecSchema = z.object({
   title: z.string().trim().min(1, 'Add a title.'),
   passage1: z.object({
-    subtitle: z.string().trim().min(1, 'Add passage 1 subtitle.'),
+    subtitle: z.string().trim().min(1, 'Add passage 1 subtitle.').default(PASSAGE_TITLES.passage1),
     content: z.string().trim().min(1, 'Add passage 1 content.'),
+    contentSecondary: z.string().trim().default(''),
   }),
   passage2: z.object({
-    subtitle: z.string().trim().min(1, 'Add passage 2 subtitle.'),
+    subtitle: z.string().trim().min(1, 'Add passage 2 subtitle.').default(PASSAGE_TITLES.passage2),
     content: z.string().trim().min(1, 'Add passage 2 content.'),
+    contentSecondary: z.string().trim().default(''),
   }),
   design: deckDesignSchema.default(DEFAULT_DESIGN),
 });
@@ -74,6 +79,7 @@ export type SlidePlan = {
   kind: SlideKind;
   title?: string;
   content?: string;
+  contentSecondary?: string;
   startFrame: number;
   durationInFrames: number;
 };
@@ -84,11 +90,13 @@ export const defaultDeck: DeckSpec = {
     subtitle: 'Khutbah 1',
     content:
       'All praise is due to Allah. We praise Him, seek His help, and ask His forgiveness.\n\nقال الله تعالى: فَاذْكُرُونِي أَذْكُرْكُمْ\n\nRemembering Allah softens the heart and returns a person to clarity after distraction.',
+    contentSecondary: '',
   },
   passage2: {
     subtitle: 'Khutbah 2',
     content:
       'The believer carries worship into daily conduct: truthfulness in speech, patience in hardship, and mercy toward people.\n\nقال رسول الله ﷺ: إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ\n\nActions are raised by sincere intention, so renew the intention before every act.',
+    contentSecondary: '',
   },
   design: DEFAULT_DESIGN,
 };
@@ -112,6 +120,16 @@ export function secondsToFrames(seconds: number): number {
 }
 
 export function buildSlidePlan(deck: DeckSpec): SlidePlan[] {
+  const resolveDuration = (primary: string, secondary: string) => {
+    if (deck.design.contentLayout === 'bilingual') {
+      return Math.max(
+        contentDurationSeconds(primary, deck.design.scrollingSpeed),
+        contentDurationSeconds(secondary, deck.design.scrollingSpeed),
+      );
+    }
+    return contentDurationSeconds(primary, deck.design.scrollingSpeed);
+  };
+
   const slides: Omit<SlidePlan, 'startFrame'>[] = [
     {
       id: 'main-title',
@@ -129,7 +147,8 @@ export function buildSlidePlan(deck: DeckSpec): SlidePlan[] {
       id: 'passage-1-content',
       kind: 'content',
       content: deck.passage1.content,
-      durationInFrames: secondsToFrames(contentDurationSeconds(deck.passage1.content, deck.design.scrollingSpeed)),
+      contentSecondary: deck.passage1.contentSecondary,
+      durationInFrames: secondsToFrames(resolveDuration(deck.passage1.content, deck.passage1.contentSecondary)),
     },
     {
       id: 'passage-2-title',
@@ -141,7 +160,8 @@ export function buildSlidePlan(deck: DeckSpec): SlidePlan[] {
       id: 'passage-2-content',
       kind: 'content',
       content: deck.passage2.content,
-      durationInFrames: secondsToFrames(contentDurationSeconds(deck.passage2.content, deck.design.scrollingSpeed)),
+      contentSecondary: deck.passage2.contentSecondary,
+      durationInFrames: secondsToFrames(resolveDuration(deck.passage2.content, deck.passage2.contentSecondary)),
     },
   ];
 
@@ -167,5 +187,4 @@ export function splitParagraphs(text: string): string[] {
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
 }
-
 

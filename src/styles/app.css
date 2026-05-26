@@ -136,6 +136,16 @@ h2 {
   gap: 8px;
 }
 
+.content-field-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.content-field-grid.is-bilingual {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .field span {
   color: #cabf9c;
   font-size: 13px;
