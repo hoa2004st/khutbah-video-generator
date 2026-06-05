@@ -3,7 +3,9 @@ import {Player} from '@remotion/player';
 import {KhutbahComposition} from '../remotion/KhutbahComposition';
 import {
   DEFAULT_DESIGN,
+  DEFAULT_RENDER,
   DeckDesign,
+  DeckRenderSettings,
   DeckSpec,
   FPS,
   PASSAGE_TITLES,
@@ -16,9 +18,10 @@ import {
   getDeckDurationSeconds,
   getTotalFrames,
   parseDeckSpec,
+  renderQualityOptions,
 } from '../shared/deck';
 import {buildStandaloneHtml} from '../shared/htmlExport';
-import type {RenderProgress} from '../global';
+import type {RenderMethod, RenderProgress} from '../global';
 
 const STORAGE_KEY = 'khutbah-video-generator.deck.v1';
 
@@ -27,6 +30,12 @@ const fontLabels: Record<DeckDesign['fontFamily'], string> = {
   sans: 'Sans',
   arabic: 'Arabic focused',
   classic: 'Classic',
+};
+
+const renderQualityLabels: Record<DeckRenderSettings['quality'], string> = {
+  balanced: 'Balanced (recommended)',
+  fast: 'Faster (lower quality)',
+  draft: 'Draft (fastest)',
 };
 
 type SaveState = {
@@ -54,6 +63,7 @@ export function App() {
   });
   const [renderProgress, setRenderProgress] = useState<RenderProgress | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [renderMethod, setRenderMethod] = useState<RenderMethod>('remotion');
 
   const validDeck = deck;
   const isBilingual = deck.design.contentLayout === 'bilingual';
@@ -120,6 +130,23 @@ export function App() {
     setDeck((current) => ({
       ...current,
       design: DEFAULT_DESIGN,
+    }));
+  };
+
+  const updateRenderSettings = <Key extends keyof DeckRenderSettings>(key: Key, value: DeckRenderSettings[Key]) => {
+    setDeck((current) => ({
+      ...current,
+      render: {
+        ...current.render,
+        [key]: value,
+      },
+    }));
+  };
+
+  const resetRenderSettings = () => {
+    setDeck((current) => ({
+      ...current,
+      render: DEFAULT_RENDER,
     }));
   };
 
@@ -199,7 +226,7 @@ export function App() {
     });
     setSaveState({tone: 'busy', message: 'Starting MP4 render...'});
     try {
-      const job = await window.khutbahApi.startRender(validDeck, outputPath);
+      const job = await window.khutbahApi.startRender(validDeck, outputPath, renderMethod);
       setActiveJobId(job.jobId);
       setSaveState({tone: 'busy', message: `Rendering MP4: ${job.outputPath}`});
     } catch (error) {
@@ -411,6 +438,55 @@ export function App() {
               unit="wpm"
               onChange={(value) => updateDesign('scrollingSpeed', value)}
             />
+          </section>
+
+          <section className="design-panel" aria-label="Render options">
+            <div className="section-row">
+              <div>
+                <p className="eyebrow">Render</p>
+                <h2>Speed presets</h2>
+              </div>
+              <button type="button" className="small-button" onClick={resetRenderSettings}>
+                Reset
+              </button>
+            </div>
+            <label className="field">
+              <span>Render method</span>
+              <select
+                value={renderMethod}
+                onChange={(event) => setRenderMethod(event.target.value as RenderMethod)}
+                disabled={Boolean(activeJobId)}
+              >
+                <option value="remotion">High quality (frame-accurate)</option>
+                <option value="capture">Fast capture (real-time, for slower PCs)</option>
+              </select>
+            </label>
+            <p className="field-note">
+              {renderMethod === 'capture'
+                ? 'Records the deck playing in real time. Roughly 1x the video length; smoothness depends on your PC.'
+                : 'Renders every frame offline for the cleanest result. Slower than real time on low-core machines.'}
+            </p>
+            <label className="field">
+              <span>Render speed</span>
+              <select
+                value={deck.render.quality}
+                onChange={(event) =>
+                  updateRenderSettings('quality', event.target.value as DeckRenderSettings['quality'])
+                }
+                disabled={renderMethod === 'capture'}
+              >
+                {renderQualityOptions.map((quality) => (
+                  <option key={quality} value={quality}>
+                    {renderQualityLabels[quality]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="field-note">
+              {renderMethod === 'capture'
+                ? 'Quality presets apply to high-quality rendering only.'
+                : 'Faster presets trade quality and resolution for shorter render time.'}
+            </p>
           </section>
 
           <div className="stats-grid">

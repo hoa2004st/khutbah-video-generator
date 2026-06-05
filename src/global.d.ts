@@ -9,6 +9,10 @@ export type RenderJob = {
   outputPath: string;
 };
 
+// 'remotion' = frame-accurate offline render; 'capture' = real-time screen
+// capture of the HTML deck (faster on low-core machines, quality varies).
+export type RenderMethod = 'remotion' | 'capture';
+
 export type RenderProgress = {
   jobId: string;
   status: 'queued' | 'rendering' | 'completed' | 'failed' | 'canceled';
@@ -24,7 +28,7 @@ declare global {
     khutbahApi?: {
       chooseOutput: (kind: 'html' | 'mp4') => Promise<string | null>;
       exportHtml: (deck: DeckSpec, outputPath: string) => Promise<ExportResult>;
-      startRender: (deck: DeckSpec, outputPath: string) => Promise<RenderJob>;
+      startRender: (deck: DeckSpec, outputPath: string, method?: RenderMethod) => Promise<RenderJob>;
       cancelRender: (jobId: string) => Promise<void>;
       onRenderProgress: (listener: (progress: RenderProgress) => void) => () => void;
     };

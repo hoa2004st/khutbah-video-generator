@@ -6,7 +6,7 @@ import {createRequire} from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {execSync, execFile} from 'node:child_process';
+import {execSync, execFile, spawn} from 'node:child_process';
 import {promisify} from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -401,15 +401,28 @@ function registerIpc() {
     return {outputPath};
   });
 
-  ipcMain.handle('render:start', async (event, unsafeDeck: unknown, outputPath: string) => {
+  ipcMain.handle('render:start', async (event, unsafeDeck: unknown, outputPath: string, method?: RenderMethod) => {
     const deck = parseDeckSpec(unsafeDeck);
     const senderWindow = BrowserWindow.fromWebContents(event.sender);
     const jobId = randomUUID();
     const totalFrames = getTotalFrames(deck);
-    const {makeCancelSignal} = await loadRemotionModules();
-    const cancelSignal = makeCancelSignal();
+    const renderMethod: RenderMethod = method === 'capture' ? 'capture' : 'remotion';
 
-    renderJobs.set(jobId, {cancel: cancelSignal.cancel});
+    const failJob = (error: unknown, canceled: boolean) => {
+      renderJobs.delete(jobId);
+      const message = error instanceof Error ? error.message : 'Render failed.';
+      const wasCanceled = canceled || message.toLowerCase().includes('cancel');
+      sendRenderProgress(senderWindow, {
+        jobId,
+        status: wasCanceled ? 'canceled' : 'failed',
+        progress: wasCanceled ? 0 : undefined,
+        currentFrame: 0,
+        totalFrames,
+        outputPath,
+        error: message,
+      });
+    };
+
     sendRenderProgress(senderWindow, {
       jobId,
       status: 'queued',
@@ -419,18 +432,29 @@ function registerIpc() {
       outputPath,
     });
 
-    void renderDeck({deck, outputPath, jobId, totalFrames, senderWindow, cancelSignal}).catch((error: unknown) => {
-      renderJobs.delete(jobId);
-      sendRenderProgress(senderWindow, {
-        jobId,
-        status: 'failed',
-        progress: 0,
-        currentFrame: 0,
-        totalFrames,
+    if (renderMethod === 'capture') {
+      // Real-time screen capture of the standalone HTML deck. Faster (~realtime)
+      // on low-core machines, but quality depends on playback smoothness.
+      let canceled = false;
+      renderJobs.set(jobId, {cancel: () => {canceled = true;}});
+      void renderViaScreenCapture({
+        deck,
         outputPath,
-        error: error instanceof Error ? error.message : 'Render failed.',
-      });
-    });
+        jobId,
+        totalFrames,
+        senderWindow,
+        shouldCancel: () => canceled,
+      })
+        .then(() => {renderJobs.delete(jobId);})
+        .catch((error: unknown) => failJob(error, canceled));
+      return {jobId, outputPath};
+    }
+
+    const {makeCancelSignal} = await loadRemotionModules();
+    const cancelSignal = makeCancelSignal();
+    renderJobs.set(jobId, {cancel: cancelSignal.cancel});
+    void renderDeck({deck, outputPath, jobId, totalFrames, senderWindow, cancelSignal})
+      .catch((error: unknown) => failJob(error, false));
 
     return {jobId, outputPath};
   });
@@ -639,5 +663,185 @@ async function renderDeck({
       outputPath,
       error: message,
     });
+  }
+}
+
+type RenderMethod = 'remotion' | 'capture';
+
+// Renders by playing the standalone HTML deck in an offscreen window in real
+// time and capturing painted frames into an h264 video via the bundled ffmpeg.
+// Capped at ~1x realtime (it plays the animation), but avoids the per-frame
+// browser screenshotting that makes the Remotion path slow on low-core machines.
+async function renderViaScreenCapture({
+  deck,
+  outputPath,
+  jobId,
+  totalFrames,
+  senderWindow,
+  shouldCancel,
+}: {
+  deck: DeckSpec;
+  outputPath: string;
+  jobId: string;
+  totalFrames: number;
+  senderWindow: BrowserWindow | null;
+  shouldCancel: () => boolean;
+}) {
+  const binariesDirectory = getCompositorBinariesDirectory();
+  const ffmpegPath = binariesDirectory ? path.join(binariesDirectory, 'ffmpeg.exe') : null;
+  if (!ffmpegPath || !existsSync(ffmpegPath)) {
+    throw new Error('Bundled ffmpeg not found; cannot use screen-capture rendering.');
+  }
+
+  const {restoreEnv, cleanupTempDir, tempRoot} = await prepareRenderTempDirectory(outputPath);
+  const htmlPath = path.join(tempRoot, 'capture.html');
+  await fs.writeFile(htmlPath, buildStandaloneHtml(deck), 'utf8');
+
+  let captureWin: BrowserWindow | null = null;
+  let ffmpeg: ReturnType<typeof spawn> | null = null;
+  startRenderPowerSaveBlocker();
+
+  try {
+    // Encoder: read concatenated JPEG frames from stdin at a fixed FPS.
+    ffmpeg = spawn(
+      ffmpegPath,
+      [
+        '-y',
+        // -c:v mjpeg before -i makes the image2pipe demuxer split the
+        // concatenated JPEG frames fed over stdin (verified with this build).
+        '-f', 'image2pipe',
+        '-c:v', 'mjpeg',
+        '-framerate', String(FPS),
+        '-i', 'pipe:0',
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-pix_fmt', 'yuv420p',
+        '-movflags', '+faststart',
+        outputPath,
+      ],
+      {stdio: ['pipe', 'ignore', 'pipe']},
+    );
+    let ffmpegErr = '';
+    ffmpeg.stderr?.on('data', (chunk) => {ffmpegErr += chunk.toString();});
+    // Avoid an unhandled EPIPE if ffmpeg exits while we're still writing frames.
+    ffmpeg.stdin?.on('error', () => {});
+    const ffmpegClosed = new Promise<void>((resolve, reject) => {
+      ffmpeg!.on('error', reject);
+      ffmpeg!.on('close', (code) =>
+        code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}: ${ffmpegErr.slice(-500)}`)),
+      );
+    });
+
+    captureWin = new BrowserWindow({
+      width: VIDEO_WIDTH,
+      height: VIDEO_HEIGHT,
+      show: false,
+      frame: false,
+      useContentSize: true,
+      webPreferences: {offscreen: true, backgroundThrottling: false},
+    });
+    captureWin.webContents.setFrameRate(FPS);
+
+    let latestFrame: Buffer | null = null;
+    captureWin.webContents.on('paint', (_event, _dirty, image) => {
+      const size = image.getSize();
+      const normalized =
+        size.width === VIDEO_WIDTH && size.height === VIDEO_HEIGHT
+          ? image
+          : image.resize({width: VIDEO_WIDTH, height: VIDEO_HEIGHT, quality: 'good'});
+      latestFrame = normalized.toJPEG(82);
+    });
+
+    await captureWin.loadFile(htmlPath);
+
+    // Wait for the first painted frame (fonts/layout settle) before the clock starts.
+    await new Promise<void>((resolve) => {
+      const started = Date.now();
+      const poll = () => {
+        if (latestFrame || shouldCancel() || Date.now() - started > 4000) resolve();
+        else setTimeout(poll, 30);
+      };
+      poll();
+    });
+
+    sendRenderProgress(senderWindow, {
+      jobId,
+      status: 'rendering',
+      progress: 0,
+      currentFrame: 0,
+      totalFrames,
+      outputPath,
+    });
+
+    // Sample the latest painted frame at a steady FPS while the animation plays
+    // in real time. Pacing by wall clock keeps the output duration correct even
+    // if the page can't sustain FPS (frames are duplicated rather than sped up).
+    const frameIntervalMs = 1000 / FPS;
+    const durationMs = (totalFrames / FPS) * 1000;
+    let framesWritten = 0;
+    let lastProgressSecond = -1;
+    await new Promise<void>((resolve, reject) => {
+      const startedAt = Date.now();
+      const timer = setInterval(() => {
+        if (shouldCancel()) {
+          clearInterval(timer);
+          reject(new Error('Render canceled'));
+          return;
+        }
+        if (!latestFrame) return;
+        const elapsed = Date.now() - startedAt;
+        // Emit exactly FPS frames per real second. If the page/timer can't keep
+        // up, duplicate the latest painted frame to fill the gap — this keeps the
+        // output duration equal to real playback time (no speed-up) at the cost
+        // of slight choppiness under load.
+        const target = Math.min(totalFrames, Math.floor(elapsed / frameIntervalMs));
+        while (framesWritten < target) {
+          ffmpeg!.stdin!.write(latestFrame);
+          framesWritten += 1;
+        }
+        const second = Math.floor(framesWritten / FPS);
+        if (second !== lastProgressSecond) {
+          lastProgressSecond = second;
+          sendRenderProgress(senderWindow, {
+            jobId,
+            status: 'rendering',
+            progress: Math.min(1, framesWritten / totalFrames),
+            currentFrame: framesWritten,
+            totalFrames,
+            outputPath,
+          });
+        }
+        if (framesWritten >= totalFrames || elapsed >= durationMs) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, frameIntervalMs);
+    });
+
+    ffmpeg.stdin!.end();
+    await ffmpegClosed;
+    ffmpeg = null;
+
+    sendRenderProgress(senderWindow, {
+      jobId,
+      status: 'completed',
+      progress: 1,
+      currentFrame: totalFrames,
+      totalFrames,
+      outputPath,
+    });
+  } finally {
+    stopRenderPowerSaveBlocker();
+    if (captureWin && !captureWin.isDestroyed()) captureWin.destroy();
+    if (ffmpeg) {
+      try {
+        ffmpeg.stdin?.end();
+      } catch {
+        // ignore
+      }
+      ffmpeg.kill();
+    }
+    restoreEnv();
+    await cleanupTempDir();
   }
 }
