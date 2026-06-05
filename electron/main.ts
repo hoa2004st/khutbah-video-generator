@@ -1,11 +1,15 @@
-import {app, BrowserWindow, dialog, ipcMain} from 'electron';
+import {app, BrowserWindow, dialog, ipcMain, powerSaveBlocker} from 'electron';
 import {randomUUID} from 'node:crypto';
 import fs from 'node:fs/promises';
 import {existsSync, appendFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
+import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {execSync} from 'node:child_process';
+import {execSync, execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 // Setup esbuild binaries before importing @remotion/bundler
 function setupEsbuildBinaries() {
@@ -92,7 +96,15 @@ setupLogging();
 
 // Now safe to import @remotion modules
 import {buildStandaloneHtml} from '../src/shared/htmlExport.js';
-import {DeckSpec, FPS, VIDEO_HEIGHT, VIDEO_WIDTH, getTotalFrames, parseDeckSpec} from '../src/shared/deck.js';
+import {
+  DeckSpec,
+  FPS,
+  RenderQualityOption,
+  VIDEO_HEIGHT,
+  VIDEO_WIDTH,
+  getTotalFrames,
+  parseDeckSpec,
+} from '../src/shared/deck.js';
 
 type RenderJobState = {
   cancel: () => void;
@@ -109,6 +121,11 @@ type RemotionModules = {
 };
 type CancelSignal = ReturnType<RemotionModules['makeCancelSignal']>;
 let remotionModulesPromise: Promise<RemotionModules> | null = null;
+let renderPowerBlockerId: number | null = null;
+// Render long videos in segments so the on-disk frame buffer never grows with
+// total duration. Each segment is encoded to its own mp4, then concatenated
+// losslessly. 3 minutes keeps peak temp disk ~1 GB even on low-storage machines.
+const CHUNK_FRAMES = 3 * 60 * FPS;
 
 async function loadRemotionModules(): Promise<RemotionModules> {
   if (!remotionModulesPromise) {
@@ -173,6 +190,135 @@ function sendRenderProgress(window: BrowserWindow | null, payload: unknown) {
     return;
   }
   window.webContents.send('render:progress', payload);
+}
+
+function startRenderPowerSaveBlocker() {
+  if (renderPowerBlockerId !== null && powerSaveBlocker.isStarted(renderPowerBlockerId)) {
+    return;
+  }
+  renderPowerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+}
+
+function stopRenderPowerSaveBlocker() {
+  if (renderPowerBlockerId === null) {
+    return;
+  }
+  if (powerSaveBlocker.isStarted(renderPowerBlockerId)) {
+    powerSaveBlocker.stop(renderPowerBlockerId);
+  }
+  renderPowerBlockerId = null;
+}
+
+type TempEnvSnapshot = {
+  TEMP?: string;
+  TMP?: string;
+  TMPDIR?: string;
+};
+
+async function prepareRenderTempDirectory(outputPath: string) {
+  const outputDir = path.dirname(outputPath);
+  const tempRoot = path.join(outputDir, '.khutbah-render-temp');
+  const previousEnv: TempEnvSnapshot = {
+    TEMP: process.env.TEMP,
+    TMP: process.env.TMP,
+    TMPDIR: process.env.TMPDIR,
+  };
+  let tempDirReady = false;
+
+  try {
+    await fs.mkdir(tempRoot, {recursive: true});
+    tempDirReady = true;
+  } catch (error) {
+    console.error('Failed to create render temp directory:', error);
+  }
+
+  if (tempDirReady) {
+    process.env.TEMP = tempRoot;
+    process.env.TMP = tempRoot;
+    process.env.TMPDIR = tempRoot;
+  }
+
+  const restoreEnv = () => {
+    if (previousEnv.TEMP === undefined) {
+      delete process.env.TEMP;
+    } else {
+      process.env.TEMP = previousEnv.TEMP;
+    }
+    if (previousEnv.TMP === undefined) {
+      delete process.env.TMP;
+    } else {
+      process.env.TMP = previousEnv.TMP;
+    }
+    if (previousEnv.TMPDIR === undefined) {
+      delete process.env.TMPDIR;
+    } else {
+      process.env.TMPDIR = previousEnv.TMPDIR;
+    }
+  };
+
+  const cleanupTempDir = async () => {
+    if (!tempDirReady) {
+      return;
+    }
+    try {
+      await fs.rm(tempRoot, {recursive: true, force: true});
+    } catch (error) {
+      console.error('Failed to clean render temp directory:', error);
+    }
+  };
+
+  const tempDrive = path.parse(tempRoot).root.toLowerCase();
+  const outputDrive = path.parse(outputPath).root.toLowerCase();
+  if (tempDrive !== outputDrive) {
+    console.warn(
+      'Render temp directory is on a different drive than the output path. Temp:',
+      tempDrive,
+      'Output:',
+      outputDrive,
+    );
+  }
+
+  return {restoreEnv, cleanupTempDir, tempRoot, tempDirReady};
+}
+
+function getRenderConcurrency(): number {
+  // Profiling showed concurrency 2 left the machine idle (2.9 fps) while 4 hit
+  // ~8-10 fps. Cap at 4 to avoid exhausting RAM with too many Chromium tabs.
+  return Math.max(1, Math.min(os.cpus().length, 4));
+}
+
+function getRenderTuning(quality: RenderQualityOption) {
+  const concurrency = getRenderConcurrency();
+  if (quality === 'fast') {
+    return {
+      imageFormat: 'jpeg' as const,
+      jpegQuality: 85,
+      x264Preset: 'veryfast' as const,
+      crf: 23,
+      hardwareAcceleration: 'if-possible' as const,
+      concurrency,
+    };
+  }
+  if (quality === 'draft') {
+    return {
+      imageFormat: 'jpeg' as const,
+      jpegQuality: 75,
+      x264Preset: 'ultrafast' as const,
+      crf: 28,
+      hardwareAcceleration: 'if-possible' as const,
+      scale: 0.75,
+      concurrency,
+    };
+  }
+  // balanced: stream frames to the encoder (never retain all frames on disk)
+  // and use all available cores.
+  return {
+    imageFormat: 'jpeg' as const,
+    jpegQuality: 82,
+    x264Preset: 'faster' as const,
+    hardwareAcceleration: 'if-possible' as const,
+    concurrency,
+  };
 }
 
 async function createWindow() {
@@ -295,6 +441,104 @@ function registerIpc() {
   });
 }
 
+type RemotionComposition = Awaited<ReturnType<RemotionModules['getCompositions']>>[number];
+
+// Concatenate h264 mp4 segments losslessly (no re-encode) with the bundled ffmpeg.
+async function concatSegments(
+  ffmpegPath: string,
+  segmentPaths: string[],
+  outputPath: string,
+  tempRoot: string,
+) {
+  const listFile = path.join(tempRoot, 'segments.txt');
+  // ffmpeg's concat demuxer wants forward slashes, even on Windows.
+  const listBody = segmentPaths
+    .map((segment) => `file '${segment.replace(/\\/g, '/')}'`)
+    .join('\n');
+  await fs.writeFile(listFile, listBody, 'utf8');
+  await execFileAsync(ffmpegPath, [
+    '-y',
+    '-f', 'concat',
+    '-safe', '0',
+    '-i', listFile,
+    '-c', 'copy',
+    '-movflags', '+faststart',
+    outputPath,
+  ]);
+}
+
+// Render to outputPath. Long videos are rendered in CHUNK_FRAMES segments so the
+// on-disk frame buffer stays bounded regardless of total duration, then the
+// segments are concatenated. onFrame receives the absolute frame index.
+async function renderDeckVideo({
+  renderMedia,
+  baseComposition,
+  serveUrl,
+  deck,
+  totalFrames,
+  outputPath,
+  tempRoot,
+  binariesDirectory,
+  cancelSignal,
+  renderTuning,
+  onFrame,
+}: {
+  renderMedia: RemotionModules['renderMedia'];
+  baseComposition: RemotionComposition;
+  serveUrl: string;
+  deck: DeckSpec;
+  totalFrames: number;
+  outputPath: string;
+  tempRoot: string;
+  binariesDirectory: string | null;
+  cancelSignal: CancelSignal;
+  renderTuning: ReturnType<typeof getRenderTuning>;
+  onFrame: (absoluteFrame: number) => void;
+}) {
+  const renderOne = (
+    outputLocation: string,
+    frameRange: [number, number] | null,
+    frameOffset: number,
+  ) =>
+    renderMedia({
+      composition: baseComposition,
+      serveUrl,
+      codec: 'h264',
+      outputLocation,
+      inputProps: {deck},
+      binariesDirectory,
+      cancelSignal: cancelSignal.cancelSignal,
+      ...(frameRange ? {frameRange} : {}),
+      onProgress: ({renderedFrames}: {renderedFrames: number}) =>
+        onFrame(frameOffset + renderedFrames),
+      ...renderTuning,
+    });
+
+  const ffmpegPath = binariesDirectory ? path.join(binariesDirectory, 'ffmpeg.exe') : null;
+
+  // Single render when short, or if we can't find ffmpeg to stitch segments.
+  if (totalFrames <= CHUNK_FRAMES || !ffmpegPath || !existsSync(ffmpegPath)) {
+    if (totalFrames > CHUNK_FRAMES && (!ffmpegPath || !existsSync(ffmpegPath))) {
+      console.warn('ffmpeg.exe not found; rendering long video without chunking:', ffmpegPath);
+    }
+    await renderOne(outputPath, null, 0);
+    return;
+  }
+
+  const chunkCount = Math.ceil(totalFrames / CHUNK_FRAMES);
+  const segmentPaths: string[] = [];
+  for (let i = 0; i < chunkCount; i += 1) {
+    const start = i * CHUNK_FRAMES;
+    const end = Math.min(start + CHUNK_FRAMES - 1, totalFrames - 1);
+    const segmentPath = path.join(tempRoot, `segment-${String(i).padStart(4, '0')}.mp4`);
+    segmentPaths.push(segmentPath);
+    await renderOne(segmentPath, [start, end], start);
+  }
+
+  await concatSegments(ffmpegPath, segmentPaths, outputPath, tempRoot);
+  await Promise.all(segmentPaths.map((segment) => fs.rm(segment, {force: true})));
+}
+
 async function renderDeck({
   deck,
   outputPath,
@@ -334,42 +578,54 @@ async function renderDeck({
   });
 
   try {
+    const {restoreEnv, cleanupTempDir, tempRoot} = await prepareRenderTempDirectory(outputPath);
+    startRenderPowerSaveBlocker();
+    const renderTuning = getRenderTuning(deck.render.quality);
     const binariesDirectory = getCompositorBinariesDirectory();
-    await renderMedia({
-      composition: {
-        ...composition,
-        durationInFrames: totalFrames,
-        fps: FPS,
-        width: VIDEO_WIDTH,
-        height: VIDEO_HEIGHT,
-      },
-      serveUrl,
-      codec: 'h264',
-      outputLocation: outputPath,
-      inputProps: {deck},
-      binariesDirectory,
-      cancelSignal: cancelSignal.cancelSignal,
-      onProgress: ({progress, renderedFrames}: {progress: number; renderedFrames: number}) => {
-        sendRenderProgress(senderWindow, {
-          jobId,
-          status: 'rendering',
-          progress,
-          currentFrame: renderedFrames,
-          totalFrames,
-          outputPath,
-        });
-      },
-    });
+    try {
+      await renderDeckVideo({
+        renderMedia,
+        baseComposition: {
+          ...composition,
+          durationInFrames: totalFrames,
+          fps: FPS,
+          width: VIDEO_WIDTH,
+          height: VIDEO_HEIGHT,
+        },
+        serveUrl,
+        deck,
+        totalFrames,
+        outputPath,
+        tempRoot,
+        binariesDirectory,
+        cancelSignal,
+        renderTuning,
+        onFrame: (absoluteFrame) => {
+          sendRenderProgress(senderWindow, {
+            jobId,
+            status: 'rendering',
+            progress: totalFrames > 0 ? absoluteFrame / totalFrames : 0,
+            currentFrame: absoluteFrame,
+            totalFrames,
+            outputPath,
+          });
+        },
+      });
 
-    renderJobs.delete(jobId);
-    sendRenderProgress(senderWindow, {
-      jobId,
-      status: 'completed',
-      progress: 1,
-      currentFrame: totalFrames,
-      totalFrames,
-      outputPath,
-    });
+      renderJobs.delete(jobId);
+      sendRenderProgress(senderWindow, {
+        jobId,
+        status: 'completed',
+        progress: 1,
+        currentFrame: totalFrames,
+        totalFrames,
+        outputPath,
+      });
+    } finally {
+      stopRenderPowerSaveBlocker();
+      restoreEnv();
+      await cleanupTempDir();
+    }
   } catch (error) {
     renderJobs.delete(jobId);
     const message = error instanceof Error ? error.message : 'Render failed.';
