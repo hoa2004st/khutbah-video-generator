@@ -282,9 +282,13 @@ async function prepareRenderTempDirectory(outputPath: string) {
 }
 
 function getRenderConcurrency(): number {
-  // Profiling showed concurrency 2 left the machine idle (2.9 fps) while 4 hit
-  // ~8-10 fps. Cap at 4 to avoid exhausting RAM with too many Chromium tabs.
-  return Math.max(1, Math.min(os.cpus().length, 4));
+  // Each unit of concurrency is one Chromium tab rasterizing frames on the GPU.
+  // With GPU rasterization (gl: 'angle') a single tab only drives the GPU to
+  // ~40%, so feed it more parallel tabs to push utilization and throughput up.
+  // Leave one core for the OS/encoder and cap at 8 so RAM (each 1080p tab is a
+  // few hundred MB) doesn't blow up on lower-spec machines.
+  const cores = os.cpus().length;
+  return Math.max(1, Math.min(cores - 1, 8));
 }
 
 function getRenderTuning(quality: RenderQualityOption) {
@@ -532,6 +536,11 @@ async function renderDeckVideo({
       inputProps: {deck},
       binariesDirectory,
       cancelSignal: cancelSignal.cancelSignal,
+      // Rasterize each frame on the GPU (ANGLE/D3D11 on Windows) instead of the
+      // default software backend (swangle). Software rasterization is what pins
+      // the CPU at 100% while the GPU sits idle and makes renders take ~3x the
+      // clip length; the GPU path offloads compositing and frees cores.
+      chromiumOptions: {gl: 'angle'},
       ...(frameRange ? {frameRange} : {}),
       onProgress: ({renderedFrames}: {renderedFrames: number}) =>
         onFrame(frameOffset + renderedFrames),
@@ -585,6 +594,7 @@ async function renderDeck({
   });
   const compositions = await getCompositions(serveUrl, {
     inputProps: {deck},
+    chromiumOptions: {gl: 'angle'},
   });
   const composition = compositions.find((candidate) => candidate.id === 'KhutbahDeck');
 

@@ -1,4 +1,4 @@
-import React, {useRef, useState, useEffect} from 'react';
+import React from 'react';
 import {
   AbsoluteFill,
   Sequence,
@@ -108,21 +108,7 @@ function TitleSlide({slide, prominent}: {slide: SlidePlan; prominent: boolean}) 
 function ContentSlide({slide, deck}: {slide: SlidePlan; deck: DeckSpec}) {
   const frame = useCurrentFrame();
   const {fps, height} = useVideoConfig();
-  const contentRef = useRef<HTMLDivElement>(null);
-  const secondaryContentRef = useRef<HTMLDivElement>(null);
-  const [contentHeight, setContentHeight] = useState(0);
-  const [secondaryContentHeight, setSecondaryContentHeight] = useState(0);
   const isBilingual = deck.design.contentLayout === 'bilingual';
-
-  useEffect(() => {
-    if (contentRef.current) {
-      // Measure scroll height instead of offset height to get actual content
-      setContentHeight(contentRef.current.scrollHeight);
-    }
-    if (secondaryContentRef.current) {
-      setSecondaryContentHeight(secondaryContentRef.current.scrollHeight);
-    }
-  }, [slide.content, slide.contentSecondary, slide.id, deck.design.fontSize, isBilingual]);
 
   const fadeInFrames = Math.round(fps * 0.1);
   const fadeOutStart = slide.durationInFrames - Math.round(fps * 0.1);
@@ -134,13 +120,20 @@ function ContentSlide({slide, deck}: {slide: SlidePlan; deck: DeckSpec}) {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  
-  // Calculate positions in pixels: start below screen, end above screen
-  const startY = height;
-  const primaryEndY = -contentHeight;
-  const secondaryEndY = -secondaryContentHeight;
-  const primaryY = interpolate(progress, [0, 1], [startY, primaryEndY]);
-  const secondaryY = interpolate(progress, [0, 1], [startY, secondaryEndY]);
+
+  // Scroll the wall from fully below the mask (translateY = viewport height) to
+  // fully above it (translateY = -100% of the wall's OWN height). Expressing the
+  // end as a CSS percentage lets the browser resolve it against the actual
+  // laid-out height at paint time, so we never measure the DOM.
+  //
+  // Why this matters: the previous implementation measured scrollHeight in a
+  // useEffect and used -contentHeight as the end position. Remotion renders long
+  // videos as independent 3-minute chunk segments, each in a fresh browser, and
+  // each re-measured the Arabic text's height slightly differently. The segment
+  // after the 3-minute mark would measure a larger height, scroll the text off
+  // the top early, and leave only the background. A CSS percentage is identical
+  // in every segment and every parallel worker, so the scroll is always correct.
+  const scrollTransform = `translateY(calc(${(1 - progress) * height}px - ${progress * 100}%))`;
 
   return (
     <AbsoluteFill
@@ -150,22 +143,14 @@ function ContentSlide({slide, deck}: {slide: SlidePlan; deck: DeckSpec}) {
       <div className="content-mask">
         {isBilingual ? (
           <div className="content-columns">
-            <article
-              ref={contentRef}
-              className="content-wall"
-              style={{transform: `translateY(${primaryY}px)`}}
-            >
+            <article className="content-wall" style={{transform: scrollTransform}}>
               {splitParagraphs(slide.content ?? '').map((paragraph, index) => (
                 <p key={`${slide.id}-primary-${index}`} dir="auto">
                   {paragraph}
                 </p>
               ))}
             </article>
-            <article
-              ref={secondaryContentRef}
-              className="content-wall"
-              style={{transform: `translateY(${secondaryY}px)`}}
-            >
+            <article className="content-wall" style={{transform: scrollTransform}}>
               {splitParagraphs(slide.contentSecondary ?? '').map((paragraph, index) => (
                 <p key={`${slide.id}-secondary-${index}`} dir="auto">
                   {paragraph}
@@ -174,11 +159,7 @@ function ContentSlide({slide, deck}: {slide: SlidePlan; deck: DeckSpec}) {
             </article>
           </div>
         ) : (
-          <article
-            ref={contentRef}
-            className="content-wall"
-            style={{transform: `translateY(${primaryY}px)`}}
-          >
+          <article className="content-wall" style={{transform: scrollTransform}}>
             {splitParagraphs(slide.content ?? '').map((paragraph, index) => (
               <p key={`${slide.id}-${index}`} dir="auto">
                 {paragraph}

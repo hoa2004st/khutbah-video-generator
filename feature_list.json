@@ -1,0 +1,70 @@
+{
+  "features": [
+    {
+      "id": "F001",
+      "name": "Electron + Vite desktop shell with editor, preview, and action panel",
+      "status": "done",
+      "tests": "Manual smoke test"
+    },
+    {
+      "id": "F002",
+      "name": "Deck schema, validation, defaults, and duration/word-count utilities",
+      "status": "done",
+      "tests": "npm test (deck.test.ts)"
+    },
+    {
+      "id": "F003",
+      "name": "5-slide Remotion composition with animated titles and scrolling content",
+      "status": "done",
+      "tests": "Manual preview in app"
+    },
+    {
+      "id": "F004",
+      "name": "Live preview using Remotion Player with timeline summary",
+      "status": "done",
+      "tests": "Manual preview in app"
+    },
+    {
+      "id": "F005",
+      "name": "Standalone HTML export using the shared deck renderer",
+      "status": "done",
+      "tests": "npm test (deck.test.ts) + manual export"
+    },
+    {
+      "id": "F006",
+      "name": "MP4 rendering from Electron main process with progress + cancel",
+      "status": "done",
+      "tests": "Manual render in Electron app"
+    },
+    {
+      "id": "F007",
+      "name": "Design controls (fonts, colors, margins, font size, background image, layout)",
+      "status": "done",
+      "tests": "Manual UI check"
+    },
+    {
+      "id": "F008",
+      "name": "Local autosave of deck inputs",
+      "status": "done",
+      "tests": "Manual reload check"
+    },
+    {
+      "id": "F009",
+      "name": "Packaging configuration for Windows builds",
+      "status": "done",
+      "tests": "npm run package (manual)"
+    },
+    {
+      "id": "F010",
+      "name": "Automated smoke tests for HTML export and MP4 rendering",
+      "status": "todo",
+      "tests": "Not implemented"
+    },
+    {
+      "id": "F011",
+      "name": "Render speed presets for faster MP4 exports",
+      "status": "done",
+      "tests": "npm test, npm exec tsc --noEmit, npm run build"
+    }
+  ]
+}

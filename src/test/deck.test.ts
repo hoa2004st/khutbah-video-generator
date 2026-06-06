@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {
   DEFAULT_DESIGN,
+  DEFAULT_RENDER,
   FPS,
   PASSAGE_TITLES,
   TITLE_SECONDS,
@@ -56,6 +57,16 @@ describe('deck model', () => {
     });
 
     expect(deck.design).toEqual(DEFAULT_DESIGN);
+  });
+
+  it('adds default render settings when loading older deck data', () => {
+    const deck = parseDeckSpec({
+      title: 'Render deck',
+      passage1: {content: 'one'},
+      passage2: {content: 'two'},
+    });
+
+    expect(deck.render).toEqual(DEFAULT_RENDER);
   });
 
   it('keeps imported background image data in the design settings', () => {

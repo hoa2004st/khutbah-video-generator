@@ -17,6 +17,14 @@ export const fontFamilyOptions = ['serif', 'sans', 'arabic', 'classic'] as const
 
 export type FontFamilyOption = (typeof fontFamilyOptions)[number];
 
+export const renderQualityOptions = ['balanced', 'fast', 'draft'] as const;
+
+export type RenderQualityOption = (typeof renderQualityOptions)[number];
+
+export type DeckRenderSettings = {
+  quality: RenderQualityOption;
+};
+
 export type DeckDesign = {
   fontFamily: FontFamilyOption;
   margin: number;
@@ -27,6 +35,10 @@ export type DeckDesign = {
   fontSize: number;
   scrollingSpeed: number;
   contentLayout: 'single' | 'bilingual';
+};
+
+export const DEFAULT_RENDER: DeckRenderSettings = {
+  quality: 'balanced',
 };
 
 export const DEFAULT_DESIGN: DeckDesign = {
@@ -42,6 +54,10 @@ export const DEFAULT_DESIGN: DeckDesign = {
 };
 
 const hexColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a 6-digit hex color.');
+
+export const deckRenderSchema = z.object({
+  quality: z.enum(renderQualityOptions).default(DEFAULT_RENDER.quality),
+});
 
 export const deckDesignSchema = z.object({
   fontFamily: z.enum(fontFamilyOptions).default(DEFAULT_DESIGN.fontFamily),
@@ -68,6 +84,7 @@ export const deckSpecSchema = z.object({
     contentSecondary: z.string().trim().default(''),
   }),
   design: deckDesignSchema.default(DEFAULT_DESIGN),
+  render: deckRenderSchema.default(DEFAULT_RENDER),
 });
 
 export type DeckSpec = z.infer<typeof deckSpecSchema>;
@@ -99,6 +116,7 @@ export const defaultDeck: DeckSpec = {
     contentSecondary: '',
   },
   design: DEFAULT_DESIGN,
+  render: DEFAULT_RENDER,
 };
 
 export function parseDeckSpec(value: unknown): DeckSpec {
@@ -187,4 +205,3 @@ export function splitParagraphs(text: string): string[] {
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
 }
-
